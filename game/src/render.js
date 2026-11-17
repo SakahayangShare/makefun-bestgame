@@ -29,6 +29,14 @@ export function buatRenderer(canvas) {
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, W, H);
 
+      // Water surface caustic light rays (upper third)
+      const time = Date.now() * 0.003;
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+      for (let i = 0; i < 5; i++) {
+        const yOffset = 20 + i * 25 + Math.sin(time + i) * 8;
+        ctx.fillRect(0, yOffset, W, 2 + (i % 2));
+      }
+
       // 2. Parallax Bubbles
       ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
       bubbles.forEach(b => {
