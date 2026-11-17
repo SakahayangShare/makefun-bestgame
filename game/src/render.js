@@ -1,141 +1,365 @@
-// Drawing only: the world's state and the current screen in, pixels out. The 1280x720 playfield
-// is scaled to fit the window and centred, the margin filled with the backdrop colour. Flat
-// rectangles and circles, canvas text for the HUD and the panels. Text that holds a number is
-// rebuilt only when the number changes, so a frame allocates nothing.
-import { FIELD, FONT, LIVES, PALETTE } from './config.js';
-import { KIND_COIN } from './world.js';
+import { W, H, SEA, DEEP, CORAL, SAND, FOAM } from './config.js';
 
-export const SCREEN_TITLE = 'title';
-export const SCREEN_PLAY = 'play';
-export const SCREEN_PAUSED = 'paused';
-export const SCREEN_OVER = 'over';
+export function buatRenderer(canvas) {
+  const ctx = canvas.getContext('2d');
 
-/** The panel's width; its height grows with its lines: room for the title, the lines and the prompt. */
-const PANEL = { width: 600, top: 134, line: 34, bottom: 70 };
-const LIFE_SIZE = 20;
-const LIFE_GAP = 8;
+  // Background decor generated once for stability
+  const bubbles = Array.from({ length: 25 }, () => ({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    r: 1 + Math.random() * 3,
+    speed: 0.3 + Math.random() * 0.7
+  }));
 
-function cachedLabel(prefix) {
-  let value = -1;
-  let text = '';
-  return function label(next) {
-    if (next !== value) {
-      value = next;
-      text = prefix + next;
-    }
-    return text;
-  };
-}
+  const seaweeds = Array.from({ length: 12 }, () => ({
+    x: Math.random() * W,
+    height: 40 + Math.random() * 60,
+    segments: 5
+  }));
 
-export function createRenderer(canvas) {
-  const context = canvas.getContext('2d');
-  const view = { scale: 1, x: 0, y: 0 };
-  const scoreLabel = cachedLabel('Score ');
-  const levelLabel = cachedLabel('Level ');
-  const finalLabel = cachedLabel('Score ');
-  const bestLabel = cachedLabel('Best ');
+  return {
+    gambar(state) {
+      ctx.clearRect(0, 0, W, H);
 
-  function resize() {
-    const ratio = window.devicePixelRatio || 1;
-    const width = Math.round(window.innerWidth * ratio);
-    const height = Math.round(window.innerHeight * ratio);
-    canvas.width = width;
-    canvas.height = height;
-    view.scale = Math.min(width / FIELD.width, height / FIELD.height);
-    view.x = (width - FIELD.width * view.scale) / 2;
-    view.y = (height - FIELD.height * view.scale) / 2;
-  }
+      // 1. Background Gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, '#020617');
+      grad.addColorStop(0.5, '#091e3a');
+      grad.addColorStop(1, '#0c2340');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
 
-  const fonts = new Map();
-  function text(value, x, y, size, color, align) {
-    if (!fonts.has(size)) fonts.set(size, `${size}px ${FONT}`);
-    context.font = fonts.get(size);
-    context.fillStyle = color;
-    context.textAlign = align;
-    context.fillText(value, x, y);
-  }
+      // 2. Parallax Bubbles
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+      bubbles.forEach(b => {
+        b.y -= b.speed;
+        if (b.y < -10) b.y = H + 10;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
 
-  function drawField(state) {
-    context.fillStyle = PALETTE.sky;
-    context.fillRect(0, 0, FIELD.width, FIELD.height);
-    context.fillStyle = PALETTE.ground;
-    context.fillRect(0, FIELD.groundY, FIELD.width, FIELD.height - FIELD.groundY);
+      // 3. Parallax Seaweed at bottom
+      ctx.strokeStyle = '#047857';
+      ctx.lineWidth = 4;
+      const time = Date.now() * 0.003;
+      seaweeds.forEach((sw, i) => {
+        ctx.beginPath();
+        ctx.moveTo(sw.x, H - 20);
+        let cx = sw.x;
+        let cy = H - 20 - sw.height / 2;
+        cx += Math.sin(time + i) * 15;
+        ctx.quadraticCurveTo(cx, cy, sw.x + Math.sin(time * 0.8 + i) * 10, H - 20 - sw.height);
+        ctx.stroke();
+      });
 
-    const items = state.items;
-    for (let index = 0; index < items.length; index += 1) {
-      const item = items[index];
-      if (!item.active) continue;
-      if (item.kind === KIND_COIN) {
-        context.fillStyle = PALETTE.coin;
-        context.beginPath();
-        context.arc(item.x + item.width / 2, item.y + item.height / 2, item.width / 2, 0, Math.PI * 2);
-        context.fill();
-      } else {
-        context.fillStyle = PALETTE.block;
-        context.fillRect(item.x, item.y, item.width, item.height);
+      // 4. Coral Reef at Bottom
+      ctx.fillStyle = CORAL;
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += 40) {
+        const h = 25 + Math.sin(x * 0.05) * 15 + Math.cos(x * 0.02) * 10;
+        ctx.lineTo(x, H - h);
+      }
+      ctx.lineTo(W, H);
+      ctx.fill();
+
+      // Sand floor accent
+      ctx.fillStyle = SAND;
+      ctx.fillRect(0, H - 12, W, 12);
+
+      // If state is not title, draw game entities
+      if (state.layar !== 'judul') {
+        // Particles
+        if (state.partikel) {
+          state.partikel.forEach(p => {
+            ctx.fillStyle = p.warna || FOAM;
+            ctx.globalAlpha = p.alpha;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+          });
+        }
+
+        // PowerUps
+        if (state.powerups) {
+          state.powerups.forEach(pu => {
+            ctx.save();
+            ctx.translate(pu.x, pu.y);
+            ctx.shadowColor = '#38bdf8';
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = pu.jenis === 'bomb' ? '#eab308' : (pu.jenis === 'heart' ? '#f43f5e' : '#38bdf8');
+            ctx.beginPath();
+            ctx.arc(0, 0, pu.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            let symbol = '2X';
+            if (pu.jenis === 'shield') symbol = 'S';
+            if (pu.jenis === 'heart') symbol = '♥';
+            if (pu.jenis === 'bomb') symbol = '★';
+            ctx.fillText(symbol, 0, 0);
+            ctx.restore();
+          });
+        }
+
+        // Peluru (Player Bullets)
+        if (state.peluru) {
+          ctx.fillStyle = FOAM;
+          state.peluru.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.beginPath();
+            ctx.arc(p.x - 1, p.y - 1, p.r * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = FOAM;
+          });
+        }
+
+        // Tinta (Enemy Bullets)
+        if (state.tinta) {
+          ctx.fillStyle = '#475569';
+          state.tinta.forEach(t => {
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+            ctx.fill();
+          });
+        }
+
+        // Musuh (Enemies)
+        if (state.musuh) {
+          state.musuh.forEach(m => {
+            ctx.save();
+            ctx.translate(m.x, m.y);
+            if (m.tipe === 'boss') {
+              // Boss Jellyfish Robot
+              ctx.fillStyle = '#a855f7';
+              ctx.beginPath();
+              ctx.arc(0, 0, m.r, Math.PI, 0, false);
+              ctx.lineTo(m.r, m.r * 0.5);
+              // Tentacles
+              for (let i = -m.r + 10; i <= m.r - 10; i += 15) {
+                ctx.lineTo(i + Math.sin(time * 5 + i) * 5, m.r + 15);
+                ctx.lineTo(i, m.r * 0.5);
+              }
+              ctx.closePath();
+              ctx.fill();
+
+              // Boss eye / core
+              ctx.fillStyle = '#ef4444';
+              ctx.beginPath();
+              ctx.arc(0, -5, 10, 0, Math.PI * 2);
+              ctx.fill();
+
+              // Boss HP bar
+              ctx.fillStyle = '#1e293b';
+              ctx.fillRect(-40, -m.r - 18, 80, 8);
+              ctx.fillStyle = '#ef4444';
+              ctx.fillRect(-40, -m.r - 18, 80 * (m.hp / m.maxHp), 8);
+            } else {
+              // Regular Jellyfish Robot
+              let col = '#06b6d4'; // dasar
+              if (m.tipe === 'cepat') col = '#3b82f6';
+              if (m.tipe === 'tank') col = '#8b5cf6';
+              if (m.tipe === 'penembak') col = '#ec4899';
+
+              ctx.fillStyle = col;
+              ctx.beginPath();
+              ctx.arc(0, 0, m.r, Math.PI, 0, false);
+              ctx.lineTo(m.r, m.r * 0.6);
+              // tentacles
+              ctx.lineTo(m.r * 0.5, m.r + 8);
+              ctx.lineTo(0, m.r * 0.6);
+              ctx.lineTo(-m.r * 0.5, m.r + 8);
+              ctx.lineTo(-m.r, m.r * 0.6);
+              ctx.closePath();
+              ctx.fill();
+
+              // Eyes
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath();
+              ctx.arc(-5, -2, 3, 0, Math.PI * 2);
+              ctx.arc(5, -2, 3, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.fillStyle = '#0f172a';
+              ctx.beginPath();
+              ctx.arc(-5, -2, 1, 0, Math.PI * 2);
+              ctx.arc(5, -2, 1, 0, Math.PI * 2);
+              ctx.fill();
+
+              // Small HP bar if damaged or tank/penembak
+              if (m.hp < m.maxHp || m.tipe === 'tank') {
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(-m.r, -m.r - 10, m.r * 2, 4);
+                ctx.fillStyle = '#22c55e';
+                ctx.fillRect(-m.r, -m.r - 10, m.r * 2 * (m.hp / m.maxHp), 4);
+              }
+            }
+            ctx.restore();
+          });
+        }
+
+        // Pemain (Player - Guard Crab)
+        if (state.pemain) {
+          const p = state.pemain;
+          if (p.invulnMs <= 0 || Math.floor(Date.now() / 80) % 2 === 0) {
+            ctx.save();
+            ctx.translate(p.x, p.y);
+
+            // Shield ring
+            if (p.shield) {
+              ctx.strokeStyle = '#38bdf8';
+              ctx.lineWidth = 3;
+              ctx.beginPath();
+              ctx.arc(0, 0, p.r + 8, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+
+            // Crab Body
+            ctx.fillStyle = CORAL;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, p.r, p.r * 0.75, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Claws
+            ctx.fillStyle = '#e11d48';
+            ctx.beginPath();
+            ctx.arc(-p.r - 4, -2, 8, 0, Math.PI * 2);
+            ctx.arc(p.r + 4, -2, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Eyes
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(-5, -p.r * 0.6, 4, 0, Math.PI * 2);
+            ctx.arc(5, -p.r * 0.6, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(-5, -p.r * 0.6, 1.5, 0, Math.PI * 2);
+            ctx.arc(5, -p.r * 0.6, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+          }
+        }
+
+        // HUD (Score, Wave, Lives, Coral Health, Combo)
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`Skor: ${state.skor || 0}`, 20, 30);
+
+        ctx.textAlign = 'center';
+        ctx.fillText(`Gelombang: ${state.gelombang || 1} / 10`, W / 2, 30);
+
+        ctx.textAlign = 'right';
+        ctx.fillText(`Nyawa: ${'♥'.repeat(Math.max(0, state.nyawa || 0))}`, W - 20, 30);
+
+        // Combo text
+        if (state.kombo && state.kombo >= 2) {
+          ctx.fillStyle = '#facc15';
+          ctx.font = 'bold 18px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`KOMBO x${state.kombo}!`, W / 2, 60);
+        }
+
+        // Coral Health Bar at bottom
+        const karangHp = state.karang !== undefined ? state.karang : 100;
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(W / 2 - 150, H - 25, 300, 14);
+        ctx.fillStyle = karangHp > 30 ? '#22c55e' : '#ef4444';
+        ctx.fillRect(W / 2 - 150, H - 25, 300 * Math.max(0, karangHp / 100), 14);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(W / 2 - 150, H - 25, 300, 14);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`KESEHATAN KARANG: ${Math.max(0, Math.ceil(karangHp))}%`, W / 2, H - 15);
+      }
+
+      // 5. Overlays (Title, Pause, Win, Lose)
+      if (state.layar === 'judul') {
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 48px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('PENJAGA KARANG', W / 2, H / 2 - 80);
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '18px sans-serif';
+        ctx.fillText('Lindungi terumbu karang dari invasi robot ubur-ubur jahat!', W / 2, H / 2 - 30);
+
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '14px sans-serif';
+        ctx.fillText('Kontrol: A/D atau Panah untuk gerak | Spasi untuk tembak | P untuk Jeda', W / 2, H / 2 + 20);
+
+        if (Math.floor(Date.now() / 400) % 2 === 0) {
+          ctx.fillStyle = '#facc15';
+          ctx.font = 'bold 20px sans-serif';
+          ctx.fillText('Klik atau tekan Enter untuk mulai', W / 2, H / 2 + 90);
+        }
+      } else if (state.layar === 'jeda') {
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.7)';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 40px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('JEDA', W / 2, H / 2 - 20);
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '16px sans-serif';
+        ctx.fillText('Tekan P untuk melanjutkan', W / 2, H / 2 + 20);
+      } else if (state.layar === 'menang') {
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.fillStyle = '#22c55e';
+        ctx.font = 'bold 48px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('TERUMBU SELAMAT!', W / 2, H / 2 - 60);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '24px sans-serif';
+        ctx.fillText(`Skor Akhir: ${state.skor || 0}`, W / 2, H / 2);
+
+        if (Math.floor(Date.now() / 400) % 2 === 0) {
+          ctx.fillStyle = '#facc15';
+          ctx.font = 'bold 18px sans-serif';
+          ctx.fillText('Tekan R atau klik untuk main lagi', W / 2, H / 2 + 60);
+        }
+      } else if (state.layar === 'kalah') {
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 48px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('TERUMBU HANCUR', W / 2, H / 2 - 70);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '22px sans-serif';
+        ctx.fillText(`Skor Akhir: ${state.skor || 0}`, W / 2, H / 2 - 15);
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '18px sans-serif';
+        ctx.fillText(`Skor Tertinggi: ${state.skorTertinggi || 0}`, W / 2, H / 2 + 20);
+
+        if (Math.floor(Date.now() / 400) % 2 === 0) {
+          ctx.fillStyle = '#facc15';
+          ctx.font = 'bold 18px sans-serif';
+          ctx.fillText('Tekan R atau klik untuk main lagi', W / 2, H / 2 + 75);
+        }
       }
     }
-
-    const player = state.player;
-    // Blink while invulnerable after a hit: hidden on every other tenth of a second.
-    if (player.invulnerable === 0 || Math.floor(player.invulnerable * 10) % 2 === 1) {
-      context.fillStyle = PALETTE.player;
-      context.fillRect(player.x, player.y, player.width, player.height);
-    }
-  }
-
-  function drawHud(state) {
-    context.textBaseline = 'top';
-    text(scoreLabel(state.score), 24, 20, 28, PALETTE.text, 'left');
-    text(levelLabel(state.level), FIELD.width / 2, 20, 28, PALETTE.text, 'center');
-    const firstLife = FIELD.width - 24 - LIVES * (LIFE_SIZE + LIFE_GAP) + LIFE_GAP;
-    text('Lives', firstLife - 12, 20, 28, PALETTE.text, 'right');
-    for (let life = 0; life < LIVES; life += 1) {
-      context.fillStyle = life < state.lives ? PALETTE.player : PALETTE.ground;
-      context.fillRect(firstLife + life * (LIFE_SIZE + LIFE_GAP), 24, LIFE_SIZE, LIFE_SIZE);
-    }
-  }
-
-  function drawPanel(title, lines, prompt) {
-    const height = PANEL.top + lines.length * PANEL.line + PANEL.bottom;
-    const x = (FIELD.width - PANEL.width) / 2;
-    const y = (FIELD.height - height) / 2;
-    context.fillStyle = PALETTE.panel;
-    context.fillRect(x, y, PANEL.width, height);
-    context.textBaseline = 'alphabetic';
-    text(title, FIELD.width / 2, y + 78, 48, PALETTE.text, 'center');
-    for (let index = 0; index < lines.length; index += 1) {
-      text(lines[index], FIELD.width / 2, y + PANEL.top + index * PANEL.line, 22, PALETTE.muted, 'center');
-    }
-    text(prompt, FIELD.width / 2, y + height - 40, 24, PALETTE.coin, 'center');
-  }
-
-  const TITLE_LINES = ['Dodge the red blocks. Catch the gold coins.', 'Move with ← → or A D.  Pause with P.', ''];
-  const PAUSED_LINES = ['The blocks will wait for you.'];
-  const OVER_LINES = ['', ''];
-
-  /** Paint one frame: the field, then the HUD or a panel for the screen the game is on. */
-  function draw(state, screen, best) {
-    context.setTransform(1, 0, 0, 1, 0, 0);
-    context.fillStyle = PALETTE.backdrop;
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.setTransform(view.scale, 0, 0, view.scale, view.x, view.y);
-    drawField(state);
-    if (screen === SCREEN_TITLE) {
-      TITLE_LINES[2] = bestLabel(best);
-      drawPanel('Block Dodger', TITLE_LINES, 'Press Space or click to start');
-      return;
-    }
-    drawHud(state);
-    if (screen === SCREEN_PAUSED) drawPanel('Paused', PAUSED_LINES, 'Press P to resume');
-    else if (screen === SCREEN_OVER) {
-      OVER_LINES[0] = finalLabel(state.score);
-      OVER_LINES[1] = bestLabel(best);
-      drawPanel('Game over', OVER_LINES, 'Press Space or click to play again');
-    }
-  }
-
-  resize();
-  window.addEventListener('resize', resize);
-  return { draw };
+  };
 }
