@@ -29,6 +29,7 @@ export function buatRenderer(canvas) {
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, W, H);
 
+      const time = Date.now() * 0.003;
       // Water surface caustic light rays (upper third)
       ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
       for (let i = 0; i < 5; i++) {
@@ -49,7 +50,6 @@ export function buatRenderer(canvas) {
       // 3. Parallax Seaweed at bottom
       ctx.strokeStyle = '#047857';
       ctx.lineWidth = 4;
-      const time = Date.now() * 0.003;
       seaweeds.forEach((sw, i) => {
         ctx.beginPath();
         ctx.moveTo(sw.x, H - 20);
